@@ -1,0 +1,8 @@
+/.agent-shell/
+/.aider.*
+/.aider/
+/.cache/
+/.opencode/
+/bin/
+/go/
+.$*

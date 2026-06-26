@@ -1,0 +1,35 @@
+version: '3'
+
+tasks:
+  default:
+    - task: tidy
+    - task: build
+    - task: lint
+    - task: docs
+    - task: test
+    - task: e2e
+
+  tidy:
+    cmds:
+      - go mod tidy
+
+  build:
+    cmds:
+      - go build -o bin/emacs-jail-mcp ./cmd/emacs-jail-mcp/
+
+  docs:
+    cmds:
+      - go run ./cmd/emacs-jail-mcp/ man --format markdown > MANUAL.md
+      - go run ./cmd/emacs-jail-mcp/ man --format troff > doc/emacs-jail-mcp.1
+
+  lint:
+    cmds:
+      - golangci-lint run ./...
+
+  test:
+    cmds:
+      - go test ./internal/...
+
+  e2e:
+    cmds:
+      - go test -count=1 -tags e2e -v -timeout 120s ./e2e/

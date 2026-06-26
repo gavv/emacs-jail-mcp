@@ -1,0 +1,366 @@
+* emacs-jail-mcp
+
+#+BEGIN: om-readme-toc
+- [[#synopsys][Synopsys]]
+- [[#installation][Installation]]
+- [[#configuration][Configuration]]
+- [[#usage][Usage]]
+- [[#hacking][Hacking]]
+- [[#acknowledgements][Acknowledgements]]
+- [[#history][History]]
+- [[#authors][Authors]]
+- [[#license][License]]
+#+END:
+
+** Synopsys
+   :PROPERTIES:
+   :CUSTOM_ID: synopsys
+   :END:
+
+~emacs-jail-mcp~ is an [[https://modelcontextprotocol.io/][MCP server]] that runs Emacs inside a disposable [[https://podman.io/][podman]] container with *copy-on-write access* to the host filesystem.
+
+This gives LLM access to a *replica of your development environment* (Emacs, configuration, project files), so it can debug issues efficiently but can't break anything.
+
+https://github.com/user-attachments/assets/27440d9e-46e0-4976-96b5-8f97834857de
+
+/emacs-jail-mcp running on the left, opencode running on the right. It was given a task to fix LSP symbol search that fails on specific project. It started the sandbox, opened the project, initialized LSP with clangd, reproduced the bug, tested a fix, and applied it to Emacs config./
+
+*** What?
+
+This is the idea:
+
+1. AI agent (e.g. OpenCode) connects to ~emacs-jail-mcp~ and interacts with Emacs instance.
+
+2. The Emacs instance under LLM control can access all your files, but any file modifications stay inside the disposable jail and are not reflected on host.
+
+3. It runs under a virtual X server and loads your usual Emacs configuration, so the LLM can reproduce real editor behavior. It can also take screenshots.
+
+4. You can give it tasks like: "When I open file X in project Y and press ~C-c C-j~, code navigation doesn't work." The LLM can reproduce the issue with your exact config and project, then test fixes inside the jail.
+
+5. You don't need to worry about it disturbing your active Emacs session or modifying your projects on the host. Just keep it running in background until it finds a fix (or nonsense).
+
+*** How?
+
+The Go MCP server accepts requests from an LLM client and exposes MCP "tools" - callable functions to start/stop jail, evaluate Elisp, read Emacs logs, etc.
+
+When the jail starts, it creates a Podman container with copy-on-write access to the complete host filesystem. The container runs as the current user and shares the host network, hostname, IPC, etc.
+
+Inside the jail, Emacs runs under Xvfb, loads the user's normal Emacs configuration, and starts a bundled Elisp JSON-RPC server. The Go MCP server talks to the JSON-RPC server over a Unix socket.
+
+#+BEGIN_HTML
+<img src="./doc/architecture.drawio.png" width="80%"/>
+#+END_HTML
+
+*** Features
+
+CLI tools:
+
+- MCP server
+- MCP client (access to all provided MCP tools from command-line)
+
+MCP transports:
+
+- TCP/SSE transport, for clients that connect to ~http://127.0.0.1:9421/sse~
+- stdio transport, for clients that launch ~emacs-jail-mcp serve --stdio~ as a subprocess
+
+MCP tools:
+
+- ~emacs_jail_control~: start, stop, restart, or inspect jail status
+- ~emacs_jail_logs~: read Emacs messages and warnings, init diagnostics, and stderr logs
+- ~emacs_jail_bytecomp~: byte-compile an Elisp file and return diagnostics
+- ~emacs_jail_eval~: evaluate an Emacs Lisp expression
+- ~emacs_jail_shell~: run a shell command inside the jail container
+- ~emacs_jail_screenshot~: capture the Xvfb Emacs display as a PNG image
+
+*** Limitations
+
+So far the project only supports my personal setup:
+
+- Linux-only
+- Requires Podman
+- Requires X11 (Xvfb)
+- Requires root to bootstrap container
+
+It should be easy enough to implement other container or OverlayFS backends and add Wayland support. Patches are welcome!
+
+** Installation
+   :PROPERTIES:
+   :CUSTOM_ID: installation
+   :END:
+
+*** Prerequisites
+
+Should be pre-installed on system:
+
+- golang (>= 1.24)
+- emacs (>= 27.1, tested only on >= 30.1)
+- podman (for containers)
+- xvfb (for virtual X server)
+- imagemagick (for screenshots)
+- sudo (optional)
+
+For Debian-based distros:
+
+#+begin_src shell
+sudo apt-get install golang podman xvfb imagemagick sudo
+#+end_src
+
+*** Build & install
+
+This will download and build source code and put =emacs-jail-mcp= binary into =$GOPATH/bin= (=~/go/bin= by default):
+
+#+begin_src shell
+go install github.com/gavv/emacs-jail-mcp/cmd/emacs-jail-mcp@latest
+#+end_src
+
+Add to PATH:
+
+#+begin_src shell
+export PATH="${GOPATH:-$HOME/go}:$PATH"
+#+end_src
+
+Install shell completion (optional):
+
+#+begin_src shell
+emacs-jail-mcp completion bash | sudo tee /etc/bash_completion.d/emacs-jail-mcp >/dev/null
+#+end_src
+
+Install manual page (optional):
+
+#+begin_src shell
+sudo mkdir -p /usr/local/share/man/man1
+emacs-jail-mcp man | sudo tee /usr/local/share/man/man1/emacs-jail-mcp.1 >/dev/null
+man emacs-jail-mcp
+#+end_src
+
+** Configuration
+   :PROPERTIES:
+   :CUSTOM_ID: configuration
+   :END:
+
+*** OpenCode
+
+To use an already running TCP/SSE server, add this to ~opencode.jsonc~:
+
+#+begin_src json
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "permission": {
+    "emacs_jail*": "allow"
+  },
+
+  "mcp": {
+    "emacs_jail": {
+      "type": "remote",
+      "url": "http://127.0.0.1:9421/sse"
+    }
+  }
+}
+#+end_src
+
+Then start the server separately:
+
+#+begin_src shell
+emacs-jail-mcp serve
+#+end_src
+
+Or add a systemd unit to start it automatically:
+
+#+begin_src systemd
+# ~/.config/systemd/user/emacs-jail-mcp.service
+[Unit]
+Description=Emacs Jail MCP server
+
+[Service]
+ExecStart=%h/go/bin/emacs-jail-mcp serve
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+#+end_src
+
+Enable it:
+
+#+begin_src shell
+systemctl --user daemon-reload
+systemctl --user enable --now emacs-jail-mcp.service
+#+end_src
+
+Check logs:
+
+#+begin_src shell
+journalctl --user -u emacs-jail-mcp.service -f
+#+end_src
+
+Alternatively, let OpenCode launch ~emacs-jail-mcp~ over stdio:
+
+#+begin_src json
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "permission": {
+    "emacs_jail*": "allow"
+  },
+
+  "mcp": {
+    "emacs_jail": {
+      "type": "local",
+      "command": ["emacs-jail-mcp", "serve", "--stdio"]
+    }
+  }
+}
+#+end_src
+
+*** Prompt
+
+Add something like this to your agent instructions:
+
+#+begin_src markdown
+  You have access to an Emacs jail via MCP tools named `emacs_jail_*`. It runs
+  an Emacs instance that is completely under your control. Use it to reproduce
+  bugs, test changes, and experiment.
+
+  Use the MCP tools to interact with Emacs instead of running commands like
+  `emacs --batch --eval` from your regular shell.
+
+  The jail runs in a copy-on-write snapshot of the host filesystem. After start
+  or restart, its filesystem matches the host. If the jail modifies files, those
+  changes are not visible on the host. When the jail stops or restarts, all such
+  changes are lost.
+
+  You can update Emacs configuration on the host and the jail will normally see
+  the updated files. Avoid modifying the same files from inside the jail, because
+  that triggers copy-on-write for those paths. When in doubt, restart the jail.
+
+  Use `emacs_jail_eval` to run Elisp in the jail and `emacs_jail_shell` to run
+  shell commands in the jail container.
+
+  Use `emacs_jail_screenshot` to capture screenshot of Emacs instance inside
+  jail when you need to verify rendering.
+
+  When editing Elisp, use `emacs_jail_bytecomp` to validate changed files and
+  fix reported errors and warnings.
+
+  For cleanup, stop or restart the jail. It will automatically lose all state,
+  including files created or modified inside the jail.
+#+end_src
+
+** Usage
+   :PROPERTIES:
+   :CUSTOM_ID: usage
+   :END:
+
+*** Command-line reference
+
+You can find complete reference for sub-commands in their flags in [[./MANUAL.md][MANUAL.md]].
+
+*** Server examples
+
+Run an MCP server for stdio clients:
+
+#+begin_src shell
+emacs-jail-mcp serve --stdio
+#+end_src
+
+Run an MCP server using the default TCP/SSE transport:
+
+#+begin_src shell
+emacs-jail-mcp serve
+#+end_src
+
+By default the SSE server listens on ~127.0.0.1:9421~. Override the bind address with ~--mcp-host~ and ~--mcp-port~:
+
+#+begin_src shell
+emacs-jail-mcp serve --mcp-host 127.0.0.1 --mcp-port 9421
+#+end_src
+
+Check whether an SSE server is listening:
+
+#+begin_src shell
+emacs-jail-mcp info
+#+end_src
+
+*** Client examples
+
+The ~send~ command is a small CLI client for a running SSE server. It provides a sub-command for every available MCP tool.
+
+Inspect, restart, or stop the jail:
+
+#+begin_src shell
+emacs-jail-mcp send control --status
+emacs-jail-mcp send control --restart
+emacs-jail-mcp send control --stop
+#+end_src
+
+Read logs. Without flags, this reads ~messages~, ~warnings~, and ~backtrace~:
+
+#+begin_src shell
+emacs-jail-mcp send logs --sources messages,warnings
+#+end_src
+
+Evaluate Elisp:
+
+#+begin_src shell
+emacs-jail-mcp send eval '(emacs-version)'
+#+end_src
+
+Run a shell command inside the jail container:
+
+#+begin_src shell
+emacs-jail-mcp send shell 'pwd && emacs --version'
+#+end_src
+
+Capture a screenshot of the Emacs display:
+
+#+begin_src shell
+emacs-jail-mcp send screenshot --output test.png
+#+end_src
+
+** Hacking
+   :PROPERTIES:
+   :CUSTOM_ID: hacking
+   :END:
+
+Development dependencies:
+
+- [[https://taskfile.dev/][go-task]]
+- [[https://golangci-lint.run/][golangci-lint]]
+
+Available ~task~ targets:
+
+- ~task~: run all targets
+- ~task tidy~: run ~go mod tidy~
+- ~task build~: build ~bin/emacs-jail-mcp~
+- ~task lint~: run ~golangci-lint~
+- ~task docs~: re-generate man page
+- ~task test~: run unit tests
+- ~task e2e~: run end-to-end tests with real emacs instance
+
+** Acknowledgements
+   :PROPERTIES:
+   :CUSTOM_ID: acknowledgements
+   :END:
+
+The bundled Emacs JSON-RPC server is originally based on code from [[https://github.com/rhblind/emacs-mcp-server/][emacs-mcp-server]] by Rolf Håvard Blindheim, licensed under GPLv3.
+
+** History
+   :PROPERTIES:
+   :CUSTOM_ID: history
+   :END:
+
+Changelog file can be found here: [[./CHANGES.md][changelog]].
+
+** Authors
+   :PROPERTIES:
+   :CUSTOM_ID: authors
+   :END:
+
+See [[./AUTHORS.org][here]].
+
+** License
+   :PROPERTIES:
+   :CUSTOM_ID: license
+   :END:
+
+[[./LICENSE][GPLv3+]]
