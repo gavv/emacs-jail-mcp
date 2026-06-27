@@ -49,25 +49,25 @@ Emacs GUI (headless, screenshottable)
 
 ### Key components
 
-- **Go binary** (`cmd/emacs-jail-mcp/main.go`): Entry point. Initialises logging and delegates to `internal/cli`. Uses cobra for subcommand dispatch. Subcommands: `serve` (start MCP server), `send` (invoke individual tools against a running server), `info` (show MCP server address and whether it is responding). Handles SIGINT/SIGTERM for clean shutdown.
+- **Go binary** (`cmd/emacs-jail-mcp/main.go`): Entry point. Initialises logging and delegates to `internal/cli`. Uses cobra for subcommand dispatch. Subcommands: `serve` (start MCP server), `send` (invoke individual tools against a running server), `info` (show MCP server address and whether it is responding), and `man` (generate manual pages). Handles SIGINT/SIGTERM for clean shutdown.
 
-- **CLI** (`internal/cli/`): Cobra subcommand implementations. `serve` starts the MCP server — with `--stdio` it uses stdio transport, without it (default) it listens on a TCP port using SSE transport, staying alive until stdin closes. `send` proxies individual tool calls to a running server over SSE/TCP. `info` dials the configured TCP address and reports whether the server is responding.
+- **CLI** (`internal/cli/`): Cobra subcommand implementations. `serve` starts the MCP server — with `--stdio` it uses stdio transport, without it (default) it listens on a TCP port using SSE transport, staying alive until stdin closes. `send` proxies individual tool calls to a running server over SSE/TCP. `info` dials the configured TCP address and reports whether the server is responding. `man` emits troff or Markdown documentation using `cobradoc`.
 
-- **Config** (`internal/config/`): All public settings via CLI flags, no config file. `server.go` defines `ServerConfig` with derived helpers: `JailID`, `SocketPath`, `ElispDir`, `LogPath`, `StderrPath`, `LockPath`. `client.go` defines `ClientConfig` (host/port for the CLI client). `ports.go` holds port constants.
+- **Config** (`internal/config/`): All public settings via CLI flags, no config file. `server.go` defines `ServerConfig` with derived helpers: `JailID`, `ContainerName`, `SocketPath`, `MCPAddr`, `ElispDir`, `LogPath`, `StderrPath`, and `LockPath`. `display.go` defines display defaults and CLI overrides. `client.go` defines `ClientConfig` (host/port for the CLI client). `ports.go` holds port constants.
 
 - **Display** (`internal/display/`): Xvfb display configuration. Chooses the display number, queries the host display size with `xdpyinfo` when available, falls back to default dimensions, applies explicit CLI overrides, and provides X11 socket/lock paths. Host display probing is an internal jail concern and is not performed by the CLI.
 
-- **Container** (`internal/container/`): Podman lifecycle. `Start()` writes embedded elisp files to `/tmp`, runs `podman run` with the generated entrypoint script and jail-selected display config. `Stop()` kills the container, cleans up elisp dir. `Exec()`/`ExecRaw()` for running commands inside. `LogLines()` reads log file directly from host filesystem (shared `/tmp` mount).
+- **Container** (`internal/container/`): Podman lifecycle. `Start()` writes embedded elisp files to `/tmp`, acquires the watchdog lock, runs `podman run` with the generated entrypoint script and jail-selected display config, and forwards `SHELL` when set. `Stop()` kills and forcibly removes the container, releases the lock, removes embedded elisp files, and clears stale Xvfb socket/lock files. `Exec()`/`ExecRaw()` run commands inside. `LogLines()` and `StderrLines()` read shared `/tmp` files directly from the host.
 
-- **Entrypoint** (`internal/container/entrypoint.go`, `entrypoint.sh`): A static bash script (`entrypoint.sh`) embedded via `go:embed`. `entrypoint.go` generates the environment variables passed to the script (socket path, log path, display settings, etc.). The script: (1) starts watchdog, (2) starts Xvfb, (3) waits for X11 socket, (4) sets `DISPLAY`, `EMACSLOADPATH`, and `EMACS_JAIL_LOG_PATH`, (5) removes stale socket/log files, (6) exec's Emacs with `--maximized --eval` to load and start `emacs-jail-rpc`. Emacs stderr is captured to a file (shared `/tmp` mount) instead of being discarded.
+- **Entrypoint** (`internal/container/entrypoint.go`, `entrypoint.sh`): A static bash script (`entrypoint.sh`) embedded via `go:embed`. `entrypoint.go` generates the environment variables passed to the script (socket path, log/stderr paths, display settings, elisp dir, etc.). The script: (1) starts watchdog, (2) starts Xvfb, (3) waits for X11 socket, (4) sets `DISPLAY`, `EMACSLOADPATH`, and `EMACS_JAIL_LOG_PATH`, (5) removes stale socket/log/stderr files, (6) exec's Emacs with `--maximized --eval` to load and start `emacs-jail-rpc`. Emacs stderr is captured to a shared `/tmp` file.
 
-- **Emacs RPC server** (`internal/container/elisp/`): 2 elisp files embedded via `go:embed`. `emacs-jail-rpc.el` is the eval server over a Unix domain socket; `site-start.el` instruments init.
+- **Emacs elisp** (`internal/container/elisp/`): Embedded via `go:embed` and written before container start. `emacs-jail-rpc.el` is the eval server over a Unix domain socket. `site-start.el` sets `emacs-jail` early and loads `emacs-jail-log.el`. `emacs-jail-log.el` instruments init diagnostics.
 
-- **site-start.el** (`internal/container/elisp/site-start.el`): Loaded before user init via `EMACSLOADPATH` prepend. Sets `emacs-jail` to `t`, advises `message` and `load` to stream init diagnostics to the log file.
+- **Init instrumentation** (`site-start.el`, `emacs-jail-log.el`): Loaded before user init via `EMACSLOADPATH` prepend. Sets `emacs-jail` to `t`; advises `message`, `display-warning`, and `load`; writes init diagnostics to `EMACS_JAIL_LOG_PATH`; mirrors messages, warnings, and load failures to Emacs stderr.
 
-- **Client** (`internal/emacsclient/`): Go-side Unix socket client. `Client` implements newline-delimited JSON-RPC 2.0 over a Unix domain socket. Requests are sequential — `emacs-jail-rpc` processes one eval at a time, so no concurrent dispatch is needed. Provides `Connect()` and `EvalElisp()`.
+- **Client** (`internal/emacsclient/`): Go-side Unix socket client. `Client` implements newline-delimited JSON-RPC 2.0 over a Unix domain socket. `EvalElisp()` serializes the full request/response cycle with a mutex because MCP handlers can call it concurrently while the underlying connection and `bufio.Reader` are shared.
 
-- **Jail** (`internal/jail/`): Orchestrator with state machine (Stopped -> Starting -> Running -> Stopping -> Stopped). Ties together container, display, and MCP client. Accumulates log lines during `waitForSocket()`.
+- **Jail** (`internal/jail/`): Orchestrator with state machine (`Stopped -> Starting -> Running -> Stopping -> Stopped`). Ties together container, display, and MCP client. Public methods are concurrency-safe. Accumulates init log and stderr lines during `waitForSocket()`, and streams Emacs stderr to the application logger while running.
 
 - **Tools** (`internal/tools/`): 6 MCP tools registered on the Go-side MCP server:
   - `emacs_jail_control` — controls jail lifecycle: start (launch container, wait for socket, connect client), stop (disconnect client, kill container), restart (stop + clear logs + start), status (return current state)
@@ -88,21 +88,23 @@ Volumes:
 
 The container runs as the current user (`--user <uid>:<gid>`) and in the current working directory (`--workdir <cwd>`). Container name is `emacs-jail-<pid>` and auto-removes on exit (`--rm`).
 
-## Instrumentation (site-start.el)
+## Instrumentation
 
-The file `site-start.el` is placed in a temporary directory and prepended to `EMACSLOADPATH` (with trailing colon to keep default dirs). Emacs loads it **before** user init, making it the right place to instrument.
+The files in `internal/container/elisp/` are written to a temporary directory and that directory is prepended to `EMACSLOADPATH` (with trailing colon to keep default dirs). Emacs loads `site-start.el` **before** user init, making it the right place to install instrumentation.
 
-It does three things:
+The instrumentation does four things:
 
 1. **Sets `emacs-jail` to `t`** — user init can detect the jail with `(bound-and-true-p emacs-jail)` and skip problematic code.
 
-2. **Advises `message`** (`:around`) — every `(message ...)` call is logged to the log file.
+2. **Advises `message`** (`:around`) — every `(message ...)` call is logged to the init log file and mirrored to stderr with a `(*Messages*)` prefix.
 
-3. **Advises `load`** (`:around`) — every file load is logged with entry (`load>`), exit (`load<`), or failure (`load!` with error + backtrace). Only fires on actual `load` failures, not caught exceptions.
+3. **Advises `display-warning`** (`:around`) — warnings are mirrored to stderr with a `(*Warnings*)` prefix.
 
-The log file path comes from `EMACS_JAIL_LOG_PATH` env var, set in the entrypoint before Emacs starts. The file lives in `/tmp` (shared mount) and is readable from the host without `podman exec`.
+4. **Advises `load`** (`:around`) — every file load is logged with entry (`load>`), exit (`load<`), or failure (`load!` with error + backtrace). Only fires on actual `load` failures, not caught exceptions.
 
-**Why not `--eval` or `after-init-hook`?** They run too late — after user init has already loaded. We need to capture messages and load events *during* init.
+The log file path comes from `EMACS_JAIL_LOG_PATH`, set in the entrypoint before Emacs starts. The init log and stderr files live in `/tmp` (shared mount) and are readable from the host without `podman exec`.
+
+**Why not `--eval` or `after-init-hook`?** They run too late — after user init has already loaded. We need to capture messages, warnings, and load events *during* init.
 
 **Why not advise `signal`?** It fires on every `condition-case`-caught error, creating massive noise. We only care about uncaught load failures.
 
@@ -114,12 +116,12 @@ The container runs in a private PID namespace, so `/proc/<hostPID>` is not visib
 _EMACS_JAIL_PGID=$(ps -o pgid= -p $$ | tr -d ' ')
 (
   while ! flock --nonblock '<lockfile>' true 2>/dev/null; do sleep 1; done
-  rm -f '<socket>' '<log>'
+  rm -f '<socket>' '<log>' '<stderr>'
   kill -TERM -"$_EMACS_JAIL_PGID" 2>/dev/null || true
 ) &
 ```
 
-When the parent Go process disappears (e.g. SIGKILL), the OS automatically releases the flock. The watchdog's next `flock --nonblock` call succeeds, signalling that the parent is gone — at which point it kills the container's entire process group and cleans up socket/log files. Combined with `--rm`, this ensures no orphan containers are left.
+When the parent Go process disappears (e.g. SIGKILL), the OS automatically releases the flock. The watchdog's next `flock --nonblock` call succeeds, signalling that the parent is gone — at which point it kills the container's entire process group and cleans up socket/log/stderr files. Combined with `--rm`, this ensures no orphan containers are left.
 
 The lock file lives in `/tmp` (shared volume mount), so it is visible to the container without requiring a shared PID namespace.
 
@@ -148,15 +150,16 @@ All security is intentionally disabled — the jail runs in a throw-away Podman 
 
 ## Dependencies
 
-- **Go**: `github.com/mark3labs/mcp-go v0.27.0` — MCP server/client library
+- **Go**: `mcp-go`, `cobra`, `cobradoc`, `op/go-logging`, `testify`
 - **System**: Podman (with sudo), Xvfb, ImageMagick (`import` command), Emacs
 - **Elisp**: Originally adapted from `rhblind/emacs-mcp-server`
 
 ## Build & test
 
 ```
-task          # tidy + build + lint + unit tests + e2e tests
+task          # tidy + build + lint + docs + unit tests + e2e tests
 task build    # go build -> bin/emacs-jail-mcp
+task docs     # regenerate MANUAL.md and doc/emacs-jail-mcp.1
 task test     # go test ./internal/...
 task e2e      # go test -count=1 -tags e2e -v -timeout 120s ./e2e/
 task lint     # golangci-lint run ./...
@@ -181,9 +184,11 @@ internal/cli/root.go                        # Root cobra command
 internal/cli/serve.go                       # serve subcommand (--stdio / SSE transport)
 internal/cli/send.go                        # send subcommand + tool sub-subcommands
 internal/cli/info.go                        # info subcommand
+internal/cli/man.go                         # man subcommand (troff / Markdown docs)
 
 internal/config/server.go                   # ServerConfig, CLI flags, derived paths
 internal/config/server_test.go
+internal/config/display.go                  # DisplayConfig and defaults
 internal/config/client.go                   # ClientConfig (host/port for CLI client)
 internal/config/client_test.go
 internal/config/ports.go                    # Port constants
@@ -199,6 +204,7 @@ internal/container/entrypoint_test.go
 internal/container/elisp.go                 # go:embed + WriteElispFiles
 
 internal/container/elisp/site-start.el      # Pre-init instrumentation
+internal/container/elisp/emacs-jail-log.el  # Init log/stderr instrumentation
 internal/container/elisp/emacs-jail-rpc.el  # Eval server (JSON-RPC over Unix socket)
 
 internal/jail/jail.go                       # Orchestrator, state machine
@@ -228,24 +234,24 @@ e2e/cli_test.go                             # TestCLI: CLI subcommands against l
 
 1. **`EMACSLOADPATH` trailing colon**: `EMACSLOADPATH='<dir>:'` prepends `<dir>` while keeping all default directories. Without the trailing colon, Emacs loses its default load-path and can't find built-in packages.
 
-2. **`podman exec` doesn't inherit env vars**: Environment variables set inside the container entrypoint (like `DISPLAY`) are not available in `podman exec`. Must pass explicitly via `-e DISPLAY=:NN`.
+2. **Log path must be an environment variable**: `--eval` and `after-init-hook` run after user init, so they are too late to configure init logging. `EMACS_JAIL_LOG_PATH` must be set before Emacs starts so `site-start.el` can read it.
 
-3. **`emacs-version` format varies**: Returns `"30.1"` (not `"GNU Emacs 30.1..."`) in some builds. Tests should check for digits+dot pattern, not specific prefix text.
+3. **`signal` advice is too noisy**: Advising `signal` fires on every `condition-case`-caught error. Log actual `load` failures instead, where the error is uncaught by the loaded file.
 
-4. **`signal` advice is too noisy**: Fires on every `condition-case`-caught error, not just uncaught ones. Removed entirely. Backtrace capture moved into `load` advice error handler.
+4. **Read logs from host files**: Init log and stderr files live in `/tmp` (shared mount), so `Container.LogLines()` and `Container.StderrLines()` read them directly from the host. This avoids `podman exec` and works before the jail is fully started.
 
-5. **Eval string quoting**: Returning strings via `(format "%S" result)` wraps them in quotes (`"\"hello\""`). Changed to return strings as-is, `%S` only for non-strings.
+5. **`podman exec` doesn't inherit entrypoint env**: Environment variables set by the container entrypoint, such as `DISPLAY`, are not available in `podman exec`. Pass them explicitly with `-e`, e.g. `-e DISPLAY=:NN`.
 
-6. **Jail needs its own RWMutex**: The MCP server dispatches tool calls concurrently, and all handlers share one `Sandbox`. Without synchronization at the Sandbox level, a `Stop` call can nil out `client` while an `EvalElisp` call is using it (nil-pointer panic), or `collectLogLines` can append to a slice while `LogLines()` reads it (data race). Fix: `Sandbox` uses a `sync.RWMutex` — exclusive lock for state-mutating methods (`Start`, `Stop`, `Restart`), read lock for readers (`EvalElisp`, `Shell`, `screenshot`, `LogLines`, etc.). `Restart` calls internal `stopLocked`/`startLocked` helpers to avoid recursive locking. `ReadBuffer` and `ScreenshotBase64` delegate to already-locked public methods so they don't lock themselves (nested `RLock` can deadlock if a writer is waiting).
+6. **Forward `SHELL` into the container**: Without `SHELL`, Emacs can fall back to `/bin/sh`. If user config sets `shell-command-switch` to `"-ic"`, dash may print `can't access tty; job control turned off`; forwarding host `SHELL` lets Emacs use the user's shell.
 
-7. **Log file via env var**: Can't use `--eval` or `after-init-hook` to set the log path — they fire after user init. The path must be available in `site-start.el`, so it's passed via `EMACS_JAIL_LOG_PATH` environment variable.
+7. **Watchdog uses flock, not `/proc`**: The container has a private PID namespace, so it can't see `/proc/<hostPID>`. The Go process holds an exclusive lock on a sentinel file in `/tmp`; when the parent exits, the OS releases the lock and the watchdog kills the container process group.
 
-8. **Watchdog uses flock, not `/proc`**: The container runs in a private PID namespace, so `/proc/<hostPID>` is not visible inside. Instead, the Go process holds an exclusive `flock` on a sentinel file in `/tmp`. The watchdog polls the lock with `flock --nonblock` — when the parent exits (any reason), the OS releases the lock and the watchdog fires.
+8. **Restart needs force cleanup**: `Stop()` uses `podman rm --force --ignore` after `podman kill` so the reused container name is freed immediately. It also removes stale Xvfb socket/lock files so the same display number can be reused.
 
-9. **`--rm` + watchdog = full cleanup**: Container auto-removes when main process exits. Watchdog kills process group when parent disappears. Combined, this handles both graceful and ungraceful (SIGKILL) shutdown.
+9. **`emacs-version` format varies**: Some builds return `"30.1"` instead of `"GNU Emacs 30.1..."`. Tests should check for a version-like string, not a specific prefix.
 
-10. **Reading log from host**: The log file lives in `/tmp` (shared mount), so `Container.LogLines()` reads it directly from the host filesystem — no need for `podman exec`, works even before the container is fully started.
+10. **Eval string quoting**: Returning strings via `(format "%S" result)` wraps them in quotes (`"\"hello\""`). Return strings as-is and use `%S` only for non-strings.
 
-11. **`SHELL` env var must be forwarded**: Without `SHELL`, Emacs falls back to `shell-file-name = /bin/sh` (dash on Ubuntu). If the user's config sets `shell-command-switch` to `"-ic"` (interactive), dash tries `tcgetpgrp()`, fails (because `call-process` calls `setsid()` on the child), and prints `can't access tty; job control turned off`. Bash handles `-ic` gracefully. Fix: forward host's `SHELL` into the container so Emacs uses the same shell as on the host.
+11. **Jail needs its own RWMutex**: MCP handlers run concurrently and share one `Jail`. Use an exclusive lock for state-changing methods (`Start`, `Stop`, `Restart`) and a read lock for readers (`EvalElisp`, `Shell`, `screenshot`, logs). Keep `Restart` on internal locked helpers to avoid recursive locking.
 
-12. **Concurrent `EvalElisp` corrupts `bufio.Reader`**: MCP tool handlers can call `EvalElisp` from different goroutines simultaneously. Without synchronization, two goroutines can call `ReadBytes` on the same `bufio.Reader` concurrently, corrupting its internal buffer and causing a `slice bounds out of range` panic. Fix: `Client.EvalElisp` holds a mutex for the entire request-response cycle, serializing access to the connection and reader.
+12. **Concurrent `EvalElisp` corrupts `bufio.Reader`**: MCP handlers can call `EvalElisp` from different goroutines. `Client.EvalElisp` must hold a mutex for the whole write/read cycle because the connection and `bufio.Reader` are shared.

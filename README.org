@@ -159,13 +159,34 @@ To use an already running TCP/SSE server, add this to ~opencode.jsonc~:
 }
 #+end_src
 
-Then start the server separately:
+Start the server separately:
 
 #+begin_src shell
 emacs-jail-mcp serve
 #+end_src
 
-Or add a systemd unit to start it automatically:
+Alternatively, let OpenCode launch ~emacs-jail-mcp~ over stdio:
+
+#+begin_src json
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "permission": {
+    "emacs_jail*": "allow"
+  },
+
+  "mcp": {
+    "emacs_jail": {
+      "type": "local",
+      "command": ["emacs-jail-mcp", "serve", "--stdio"]
+    }
+  }
+}
+#+end_src
+
+*** Systemd
+
+If you're using TCP/SSE server, you can add a user systemd unit to start the server automatically in background:
 
 #+begin_src systemd
 # ~/.config/systemd/user/emacs-jail-mcp.service
@@ -191,25 +212,6 @@ Check logs:
 
 #+begin_src shell
 journalctl --user -u emacs-jail-mcp.service -f
-#+end_src
-
-Alternatively, let OpenCode launch ~emacs-jail-mcp~ over stdio:
-
-#+begin_src json
-{
-  "$schema": "https://opencode.ai/config.json",
-
-  "permission": {
-    "emacs_jail*": "allow"
-  },
-
-  "mcp": {
-    "emacs_jail": {
-      "type": "local",
-      "command": ["emacs-jail-mcp", "serve", "--stdio"]
-    }
-  }
-}
 #+end_src
 
 *** Prompt
@@ -322,10 +324,39 @@ emacs-jail-mcp send screenshot --output test.png
    :CUSTOM_ID: hacking
    :END:
 
-Development dependencies:
+*** Project structure
 
-- [[https://taskfile.dev/][go-task]]
-- [[https://golangci-lint.run/][golangci-lint]]
+| Path        | Purpose                                   |
+|-------------+-------------------------------------------|
+| ~bin/~      | Build output                              |
+| ~doc/~      | Documentation                             |
+| ~cmd/~      | Executable entry point                    |
+| ~e2e/~      | End-to-end tests against a live jail      |
+| ~internal/~ | Internal packages used by ~cmd~ and ~e2e~ |
+
+Internal packages:
+
+| Path                       | Purpose                                                 |
+|----------------------------+---------------------------------------------------------|
+| ~internal/config/~         | Configs filled by CLI parser and used by other packages |
+| ~internal/cli/~            | CLI parser                                              |
+| ~internal/tools/~          | MCP tool handlers                                       |
+| ~internal/jail/~           | Highl-level jail orchestration and state machine        |
+| ~internal/container/~      | Container lifecycle, entrypoint, and bundled Elisp      |
+| ~internal/container/elisp~ | Emacs-side JSON-RPC server                              |
+| ~internal/emacsclient/~    | Go-side client for the Emacs-side JSON-RPC server       |
+| ~internal/display/~        | Virtual display                                         |
+
+Unit tests live next to package code as ~*_test.go~ files. End-to-end MCP and CLI coverage lives under ~e2e/~.
+
+*** Development dependencies
+
+| Dependency    | Purpose     |
+|---------------+-------------|
+| [[https://taskfile.dev/][go-task]]       | Task runner |
+| [[https://golangci-lint.run/][golangci-lint]] | Linter      |
+
+*** Development targets
 
 Available ~task~ targets:
 

@@ -17,8 +17,6 @@ linters:
       tab-width: 1
   exclusions:
     rules:
-      # bytecomp.go contains an embedded Elisp template where `t` (boolean true)
-      # appears multiple times as a language keyword; dupword false-positive.
       - path: internal/tools/bytecomp\.go
         linters:
           - dupword
