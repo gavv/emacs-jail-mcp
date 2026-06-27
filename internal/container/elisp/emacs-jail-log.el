@@ -68,7 +68,7 @@ On failure, log the error message and a backtrace, then re-signal."
         (emacs-jail-log--write-file (format "load< %s" file))
         result)
     (error
-     (emacs-jail-log--write
+     (emacs-jail-log--write-file
       (format "load! %s: %s" file (error-message-string err)))
      (emacs-jail-log--write-stderr
       (format "[load-error] %s: %s" file (error-message-string err)))
