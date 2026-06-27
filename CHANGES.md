@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.2][v0.1] - 27 Jun 2026
+
+* Fix invalid function call in elisp
+* Update documentation
+
+[v0.2]: https://github.com/gavv/emacs-jail-mcp/releases/tag/v0.2
+
 ## [v0.1][v0.1] - 26 Jun 2026
 
 * Initial release
