@@ -1,5 +1,7 @@
 * emacs-jail-mcp
 
+[[https://github.com/gavv/emacs-jail-mcp/actions/workflows/build.yml][file:https://github.com/gavv/emacs-jail-mcp/actions/workflows/build.yml/badge.svg]]
+
 #+BEGIN: om-readme-toc
 - [[#synopsys][Synopsys]]
 - [[#installation][Installation]]
