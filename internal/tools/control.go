@@ -15,7 +15,7 @@ import (
 )
 
 func controlTool() mcp.Tool {
-	return mcp.NewTool("emacs_jail_control",
+	return mcp.NewTool("control",
 		mcp.WithDescription(
 			"Control the Emacs jail lifecycle. "+
 				"Use action=start to launch the Podman container "+

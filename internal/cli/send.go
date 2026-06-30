@@ -178,7 +178,7 @@ Specify exactly one action flag: --start, --stop, --restart, or --status.`,
 			timeout := cfg.StartTimeout
 			return withMCPClient(cfg, timeout,
 				func(ctx context.Context, c *mcpclient.Client) error {
-					text, err := callToolText(ctx, c, "emacs_jail_control",
+					text, err := callToolText(ctx, c, "control",
 						map[string]any{"action": action},
 					)
 					if err != nil {
@@ -215,7 +215,7 @@ func newEvalCmd(cfg *config.ClientConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withMCPClient(cfg, cfg.ExecTimeout,
 				func(ctx context.Context, c *mcpclient.Client) error {
-					text, err := callToolText(ctx, c, "emacs_jail_eval",
+					text, err := callToolText(ctx, c, "eval",
 						map[string]any{
 							"expression": args[0],
 						},
@@ -257,7 +257,7 @@ func newLogsCmd(cfg *config.ClientConfig) *cobra.Command {
 					if limit != 0 {
 						toolArgs["limit"] = limit
 					}
-					text, err := callToolText(ctx, c, "emacs_jail_logs", toolArgs)
+					text, err := callToolText(ctx, c, "logs", toolArgs)
 					if err != nil {
 						return err
 					}
@@ -292,7 +292,7 @@ func newShellCmd(cfg *config.ClientConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withMCPClient(cfg, cfg.ExecTimeout,
 				func(ctx context.Context, c *mcpclient.Client) error {
-					text, err := callToolText(ctx, c, "emacs_jail_shell",
+					text, err := callToolText(ctx, c, "shell",
 						map[string]any{"command": args[0]},
 					)
 					if err != nil {
@@ -320,21 +320,21 @@ func newScreenshotCmd(cfg *config.ClientConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withMCPClient(cfg, 30*time.Second,
 				func(ctx context.Context, c *mcpclient.Client) error {
-					clientLog.Infof("calling tool %q", "emacs_jail_screenshot")
+					clientLog.Infof("calling tool %q", "screenshot")
 
 					req := mcp.CallToolRequest{}
-					req.Params.Name = "emacs_jail_screenshot"
+					req.Params.Name = "screenshot"
 
 					result, err := c.CallTool(ctx, req)
 					if err != nil {
-						clientLog.Errorf("tool %q call failed: %v", "emacs_jail_screenshot", err)
+						clientLog.Errorf("tool %q call failed: %v", "screenshot", err)
 						return err
 					}
 					if result.IsError {
 						for _, ct := range result.Content {
 							if tc, ok := ct.(mcp.TextContent); ok {
 								clientLog.Errorf("tool %q returned error: %s",
-									"emacs_jail_screenshot", tc.Text)
+									"screenshot", tc.Text)
 								return errors.New(tc.Text)
 							}
 						}
@@ -383,7 +383,7 @@ func newBytecompCmd(cfg *config.ClientConfig) *cobra.Command {
 					if severity != "" {
 						toolArgs["severity"] = severity
 					}
-					text, err := callToolText(ctx, c, "emacs_jail_bytecomp", toolArgs)
+					text, err := callToolText(ctx, c, "bytecomp", toolArgs)
 					if err != nil {
 						return err
 					}

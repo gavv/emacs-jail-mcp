@@ -70,12 +70,12 @@ Emacs GUI (headless, screenshottable)
 - **Jail** (`internal/jail/`): Orchestrator with state machine (`Stopped -> Starting -> Running -> Stopping -> Stopped`). Ties together container, display, and MCP client. Public methods are concurrency-safe. Accumulates init log and stderr lines during `waitForSocket()`, and streams Emacs stderr to the application logger while running.
 
 - **Tools** (`internal/tools/`): 6 MCP tools registered on the Go-side MCP server:
-  - `emacs_jail_control` — controls jail lifecycle: start (launch container, wait for socket, connect client), stop (disconnect client, kill container), restart (stop + clear logs + start), status (return current state)
-  - `emacs_jail_logs` — returns log/diagnostic output from multiple sources (init log, stderr, Emacs buffers); supports source selection, pagination, and auto-truncation
-  - `emacs_jail_eval` — evaluates elisp via emacs-jail-rpc
-  - `emacs_jail_bytecomp` — byte-compiles an elisp file (without writing a `.elc`), returns errors and warnings as JSON with file, line, column, message, and severity
-  - `emacs_jail_shell` — runs shell command inside container (with DISPLAY)
-  - `emacs_jail_screenshot` — captures Xvfb display as PNG via ImageMagick `import`
+  - `control` — controls jail lifecycle: start (launch container, wait for socket, connect client), stop (disconnect client, kill container), restart (stop + clear logs + start), status (return current state)
+  - `logs` — returns log/diagnostic output from multiple sources (init log, stderr, Emacs buffers); supports source selection, pagination, and auto-truncation
+  - `eval` — evaluates elisp via emacs-jail-rpc
+  - `bytecomp` — byte-compiles an elisp file (without writing a `.elc`), returns errors and warnings as JSON with file, line, column, message, and severity
+  - `shell` — runs shell command inside container (with DISPLAY)
+  - `screenshot` — captures Xvfb display as PNG via ImageMagick `import`
 
 ## Container setup
 

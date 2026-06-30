@@ -39,7 +39,7 @@ var bufferSources = map[string]string{
 }
 
 func logsTool() mcp.Tool {
-	return mcp.NewTool("emacs_jail_logs",
+	return mcp.NewTool("logs",
 		mcp.WithDescription(
 			"Return Emacs log and diagnostic output. "+
 				"Default sources: messages (*Messages* buffer), "+

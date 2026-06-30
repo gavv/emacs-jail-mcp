@@ -17,12 +17,12 @@ import (
 var log = logging.MustGetLogger("tools")
 
 func Register(s *server.MCPServer, sb *jail.Jail) {
-	s.AddTool(controlTool(), withLogging("emacs_jail_control", controlHandler(sb)))
-	s.AddTool(evalTool(), withLogging("emacs_jail_eval", evalHandler(sb)))
-	s.AddTool(bytecompTool(), withLogging("emacs_jail_bytecomp", bytecompHandler(sb)))
-	s.AddTool(shellTool(), withLogging("emacs_jail_shell", shellHandler(sb)))
-	s.AddTool(screenshotTool(), withLogging("emacs_jail_screenshot", screenshotHandler(sb)))
-	s.AddTool(logsTool(), withLogging("emacs_jail_logs", logsHandler(sb)))
+	s.AddTool(controlTool(), withLogging("control", controlHandler(sb)))
+	s.AddTool(evalTool(), withLogging("eval", evalHandler(sb)))
+	s.AddTool(bytecompTool(), withLogging("bytecomp", bytecompHandler(sb)))
+	s.AddTool(shellTool(), withLogging("shell", shellHandler(sb)))
+	s.AddTool(screenshotTool(), withLogging("screenshot", screenshotHandler(sb)))
+	s.AddTool(logsTool(), withLogging("logs", logsHandler(sb)))
 }
 
 func withLogging(name string, handler server.ToolHandlerFunc) server.ToolHandlerFunc {

@@ -77,12 +77,12 @@ func TestRegisterAllTools(t *testing.T) {
 	registered := listTools(t, s)
 
 	expected := []string{
-		"emacs_jail_control",
-		"emacs_jail_logs",
-		"emacs_jail_eval",
-		"emacs_jail_shell",
-		"emacs_jail_screenshot",
-		"emacs_jail_bytecomp",
+		"control",
+		"logs",
+		"eval",
+		"shell",
+		"screenshot",
+		"bytecomp",
 	}
 
 	assert.Len(t, registered, len(expected))
@@ -98,31 +98,31 @@ func TestRegisterAllTools(t *testing.T) {
 func TestControlToolHasActionParam(t *testing.T) {
 	s, _ := newTestServer()
 	for _, tool := range listTools(t, s) {
-		if tool.Name == "emacs_jail_control" {
+		if tool.Name == "control" {
 			_, ok := tool.InputSchema.Properties["action"]
 			assert.True(t, ok)
 			return
 		}
 	}
-	t.Error("emacs_jail_control not found")
+	t.Error("control not found")
 }
 
 func TestEvalToolHasExpressionParam(t *testing.T) {
 	s, _ := newTestServer()
 	for _, tool := range listTools(t, s) {
-		if tool.Name == "emacs_jail_eval" {
+		if tool.Name == "eval" {
 			_, ok := tool.InputSchema.Properties["expression"]
 			assert.True(t, ok)
 			return
 		}
 	}
-	t.Error("emacs_jail_eval not found")
+	t.Error("eval not found")
 }
 
 func TestLogsToolHasSourcesParam(t *testing.T) {
 	s, _ := newTestServer()
 	for _, tool := range listTools(t, s) {
-		if tool.Name == "emacs_jail_logs" {
+		if tool.Name == "logs" {
 			_, ok := tool.InputSchema.Properties["sources"]
 			assert.True(t, ok)
 			_, ok = tool.InputSchema.Properties["offset"]
@@ -132,75 +132,75 @@ func TestLogsToolHasSourcesParam(t *testing.T) {
 			return
 		}
 	}
-	t.Error("emacs_jail_logs not found")
+	t.Error("logs not found")
 }
 
 func TestShellToolHasCommandParam(t *testing.T) {
 	s, _ := newTestServer()
 	for _, tool := range listTools(t, s) {
-		if tool.Name == "emacs_jail_shell" {
+		if tool.Name == "shell" {
 			_, ok := tool.InputSchema.Properties["command"]
 			assert.True(t, ok)
 			return
 		}
 	}
-	t.Error("emacs_jail_shell not found")
+	t.Error("shell not found")
 }
 
 func TestControlStopWhenNotRunning(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_control", map[string]any{"action": "stop"})
+	result := callTool(t, s, "control", map[string]any{"action": "stop"})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 	assert.Contains(t, firstText(result), "not running")
 }
 
 func TestControlRestartWhenNotRunning(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_control", map[string]any{"action": "restart"})
+	result := callTool(t, s, "control", map[string]any{"action": "restart"})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 	assert.Contains(t, firstText(result), "not running")
 }
 
 func TestControlStatusWhenStopped(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_control", map[string]any{"action": "status"})
+	result := callTool(t, s, "control", map[string]any{"action": "status"})
 	assert.False(t, result.IsError, "status should not be an error; got: %q", firstText(result))
 	assert.Contains(t, firstText(result), "stopped")
 }
 
 func TestControlInvalidAction(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_control", map[string]any{"action": "invalid"})
+	result := callTool(t, s, "control", map[string]any{"action": "invalid"})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 	assert.Contains(t, firstText(result), "unknown action")
 }
 
 func TestEvalWhenNotRunning(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_eval", map[string]any{"expression": "(+ 1 2)"})
+	result := callTool(t, s, "eval", map[string]any{"expression": "(+ 1 2)"})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 	assert.Contains(t, firstText(result), "not running")
 }
 
 func TestShellWhenNotRunning(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_shell", map[string]any{"command": "echo hi"})
+	result := callTool(t, s, "shell", map[string]any{"command": "echo hi"})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 	assert.Contains(t, firstText(result), "not running")
 }
 
 func TestScreenshotWhenNotRunning(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_screenshot", nil)
+	result := callTool(t, s, "screenshot", nil)
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 	assert.Contains(t, firstText(result), "not running")
 }
 
 func TestLogsInitLogEmptyWhenNoOutput(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_logs", map[string]any{"sources": "init_log"})
+	result := callTool(t, s, "logs", map[string]any{"sources": "init_log"})
 	assert.False(t, result.IsError,
-		"emacs_jail_logs should not return an error; got: %q", firstText(result))
+		"logs should not return an error; got: %q", firstText(result))
 	text := firstText(result)
 	assert.Contains(t, text, "=== init_log ===")
 	assert.Contains(t, text, "(empty)")
@@ -208,15 +208,15 @@ func TestLogsInitLogEmptyWhenNoOutput(t *testing.T) {
 
 func TestLogsStderrEmptyWhenNoOutput(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_logs", map[string]any{"sources": "stderr"})
+	result := callTool(t, s, "logs", map[string]any{"sources": "stderr"})
 	assert.False(t, result.IsError,
-		"emacs_jail_logs should not return an error; got: %q", firstText(result))
+		"logs should not return an error; got: %q", firstText(result))
 	assert.Contains(t, firstText(result), "=== stderr ===")
 }
 
 func TestLogsUnknownSourceReturnsError(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_logs", map[string]any{"sources": "nosuchsource"})
+	result := callTool(t, s, "logs", map[string]any{"sources": "nosuchsource"})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 	assert.Contains(t, firstText(result), "unknown source")
 }
@@ -225,29 +225,29 @@ func TestLogsDefaultSourcesWhenNotRunning(t *testing.T) {
 	// Default sources are buffer-based; when jail is not running, each section
 	// contains an error message but the overall result is not IsError.
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_logs", nil)
+	result := callTool(t, s, "logs", nil)
 	assert.False(t, result.IsError,
-		"emacs_jail_logs should not return IsError for default sources; got: %q",
+		"logs should not return IsError for default sources; got: %q",
 		firstText(result))
 	assert.Contains(t, firstText(result), "=== messages ===")
 }
 
 func TestEvalMissingExpression(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_eval", map[string]any{"expression": ""})
+	result := callTool(t, s, "eval", map[string]any{"expression": ""})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 }
 
 func TestShellMissingCommand(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_shell", map[string]any{"command": ""})
+	result := callTool(t, s, "shell", map[string]any{"command": ""})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 }
 
 func TestBytecompToolHasFilePathAndSeverityParams(t *testing.T) {
 	s, _ := newTestServer()
 	for _, tool := range listTools(t, s) {
-		if tool.Name == "emacs_jail_bytecomp" {
+		if tool.Name == "bytecomp" {
 			_, ok := tool.InputSchema.Properties["file_path"]
 			assert.True(t, ok)
 			_, ok = tool.InputSchema.Properties["severity"]
@@ -255,12 +255,12 @@ func TestBytecompToolHasFilePathAndSeverityParams(t *testing.T) {
 			return
 		}
 	}
-	t.Error("emacs_jail_bytecomp not found")
+	t.Error("bytecomp not found")
 }
 
 func TestBytecompWhenNotRunning(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_bytecomp", map[string]any{
+	result := callTool(t, s, "bytecomp", map[string]any{
 		"file_path": "/tmp/test.el",
 	})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
@@ -269,6 +269,6 @@ func TestBytecompWhenNotRunning(t *testing.T) {
 
 func TestBytecompMissingFilePath(t *testing.T) {
 	s, _ := newTestServer()
-	result := callTool(t, s, "emacs_jail_bytecomp", map[string]any{"file_path": ""})
+	result := callTool(t, s, "bytecomp", map[string]any{"file_path": ""})
 	assert.True(t, result.IsError, "expected IsError=true; text: %q", firstText(result))
 }

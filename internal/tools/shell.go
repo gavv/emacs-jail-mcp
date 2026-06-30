@@ -13,7 +13,7 @@ import (
 )
 
 func shellTool() mcp.Tool {
-	return mcp.NewTool("emacs_jail_shell",
+	return mcp.NewTool("shell",
 		mcp.WithDescription(
 			"Run a shell command inside the jail container and return its output."),
 		mcp.WithString("command",

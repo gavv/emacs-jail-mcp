@@ -13,7 +13,7 @@ import (
 )
 
 func evalTool() mcp.Tool {
-	return mcp.NewTool("emacs_jail_eval",
+	return mcp.NewTool("eval",
 		mcp.WithDescription(
 			"Evaluate an Emacs Lisp expression in the jail and return the result."),
 		mcp.WithString("expression",

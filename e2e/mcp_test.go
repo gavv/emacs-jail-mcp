@@ -129,12 +129,12 @@ func TestMCP(t *testing.T) {
 		require.NoError(t, err, "ListTools")
 
 		want := []string{
-			"emacs_jail_control",
-			"emacs_jail_logs",
-			"emacs_jail_eval",
-			"emacs_jail_shell",
-			"emacs_jail_screenshot",
-			"emacs_jail_bytecomp",
+			"control",
+			"logs",
+			"eval",
+			"shell",
+			"screenshot",
+			"bytecomp",
 		}
 		assert.Len(t, result.Tools, len(want))
 		nameSet := make(map[string]bool)
@@ -147,7 +147,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("EvalBeforeStart", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_eval",
+		result := callTool(t, c, "eval",
 			map[string]any{"expression": "(+ 1 2)"})
 		assert.True(t, result.IsError,
 			"expected error result, got success: %s",
@@ -156,7 +156,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Control/StatusBeforeStart", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_control", map[string]any{"action": "status"})
+		result := callTool(t, c, "control", map[string]any{"action": "status"})
 		assert.False(t, result.IsError,
 			"expected success, got error: %s",
 			firstText(result))
@@ -164,7 +164,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Control/Start", func(t *testing.T) {
-		result := callToolLong(t, c, "emacs_jail_control",
+		result := callToolLong(t, c, "control",
 			map[string]any{"action": "start"},
 			startTimeout,
 		)
@@ -173,7 +173,7 @@ func TestMCP(t *testing.T) {
 		require.Contains(t, firstText(result), "started")
 	})
 
-	initLogsResult := callTool(t, c, "emacs_jail_logs",
+	initLogsResult := callTool(t, c, "logs",
 		map[string]any{"sources": "init_log"})
 	initLogs := firstText(initLogsResult)
 	t.Cleanup(func() {
@@ -184,7 +184,7 @@ func TestMCP(t *testing.T) {
 
 	t.Run("Logs", func(t *testing.T) {
 		t.Run("InitLog", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_logs",
+			result := callTool(t, c, "logs",
 				map[string]any{"sources": "init_log"})
 			assert.False(t, result.IsError,
 				"expected success, got error: %s",
@@ -195,7 +195,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("Stderr", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_logs", map[string]any{"sources": "stderr"})
+			result := callTool(t, c, "logs", map[string]any{"sources": "stderr"})
 			assert.False(t, result.IsError,
 				"expected success, got error: %s",
 				firstText(result))
@@ -204,13 +204,13 @@ func TestMCP(t *testing.T) {
 
 		t.Run("Buffers", func(t *testing.T) {
 			marker := "e2e-logs-buffer-marker-99887"
-			callTool(t, c, "emacs_jail_eval",
+			callTool(t, c, "eval",
 				map[string]any{
 					"expression": `(message "` +
 						marker + `")`,
 				})
 
-			result := callTool(t, c, "emacs_jail_logs",
+			result := callTool(t, c, "logs",
 				map[string]any{"sources": "messages"})
 			assert.False(t, result.IsError,
 				"expected success, got error: %s",
@@ -219,7 +219,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("AllSources", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_logs", map[string]any{
+			result := callTool(t, c, "logs", map[string]any{
 				"sources": "messages,warnings," +
 					"backtrace,compile_log," +
 					"async_compile_log," +
@@ -241,7 +241,7 @@ func TestMCP(t *testing.T) {
 
 	t.Run("Eval", func(t *testing.T) {
 		t.Run("Simple", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_eval",
+			result := callTool(t, c, "eval",
 				map[string]any{
 					"expression": "(+ 1 2)",
 				})
@@ -252,7 +252,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("String", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_eval",
+			result := callTool(t, c, "eval",
 				map[string]any{
 					"expression": `(concat "hel" "lo")`,
 				})
@@ -263,7 +263,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("Version", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_eval",
+			result := callTool(t, c, "eval",
 				map[string]any{
 					"expression": "emacs-version",
 				})
@@ -279,7 +279,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("ShellCommand", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_eval",
+			result := callTool(t, c, "eval",
 				map[string]any{
 					"expression": `(shell-command-to-string "echo hello")`,
 				})
@@ -290,7 +290,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("Tty", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_eval",
+			result := callTool(t, c, "eval",
 				map[string]any{
 					"expression": `(shell-command-to-string (format "ps -o tty= -p %d" (emacs-pid)))`,
 				})
@@ -311,14 +311,14 @@ func TestMCP(t *testing.T) {
 (e2e-test-fn 42)
 `
 		writeCmd := `printf '%s' ` + `'` + elContent + `'` + ` > ` + elFile
-		writeResult := callTool(t, c, "emacs_jail_shell",
+		writeResult := callTool(t, c, "shell",
 			map[string]any{"command": writeCmd})
 		assert.False(t, writeResult.IsError,
 			"expected success, got error: %s",
 			firstText(writeResult))
 
 		t.Run("NoFilter", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_bytecomp",
+			result := callTool(t, c, "bytecomp",
 				map[string]any{
 					"file_path": elFile,
 				})
@@ -333,7 +333,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("FilterWarning", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_bytecomp",
+			result := callTool(t, c, "bytecomp",
 				map[string]any{
 					"file_path": elFile,
 					"severity":  "warning",
@@ -345,7 +345,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("FilterError", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_bytecomp",
+			result := callTool(t, c, "bytecomp",
 				map[string]any{
 					"file_path": elFile,
 					"severity":  "error",
@@ -357,7 +357,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("NonexistentFile", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_bytecomp",
+			result := callTool(t, c, "bytecomp",
 				map[string]any{
 					"file_path": "/tmp/" + "e2e-bytecomp-no-exist.el",
 				})
@@ -369,7 +369,7 @@ func TestMCP(t *testing.T) {
 
 	t.Run("Shell", func(t *testing.T) {
 		t.Run("Echo", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_shell",
+			result := callTool(t, c, "shell",
 				map[string]any{
 					"command": "echo hello",
 				})
@@ -380,7 +380,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("Display", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_shell",
+			result := callTool(t, c, "shell",
 				map[string]any{
 					"command": "echo $DISPLAY",
 				})
@@ -391,7 +391,7 @@ func TestMCP(t *testing.T) {
 		})
 
 		t.Run("Tty", func(t *testing.T) {
-			result := callTool(t, c, "emacs_jail_shell",
+			result := callTool(t, c, "shell",
 				map[string]any{
 					"command": "tty",
 				})
@@ -405,7 +405,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Screenshot", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_screenshot", nil)
+		result := callTool(t, c, "screenshot", nil)
 		assert.False(t, result.IsError,
 			"expected success, got error: %s",
 			firstText(result))
@@ -425,7 +425,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Control/StatusWhileRunning", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_control",
+		result := callTool(t, c, "control",
 			map[string]any{"action": "status"})
 		assert.False(t, result.IsError,
 			"expected success, got error: %s",
@@ -434,7 +434,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Control/Restart", func(t *testing.T) {
-		result := callToolLong(t, c, "emacs_jail_control",
+		result := callToolLong(t, c, "control",
 			map[string]any{"action": "restart"},
 			startTimeout)
 		assert.False(t, result.IsError,
@@ -444,7 +444,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Eval/AfterRestart", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_eval",
+		result := callTool(t, c, "eval",
 			map[string]any{"expression": "(+ 2 3)"})
 		assert.False(t, result.IsError,
 			"expected success, got error: %s",
@@ -453,7 +453,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Control/Stop", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_control", map[string]any{"action": "stop"})
+		result := callTool(t, c, "control", map[string]any{"action": "stop"})
 		assert.False(t, result.IsError,
 			"expected success, got error: %s",
 			firstText(result))
@@ -461,7 +461,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("EvalAfterStop", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_eval",
+		result := callTool(t, c, "eval",
 			map[string]any{"expression": "(+ 1 2)"})
 		assert.True(t, result.IsError,
 			"expected error result, got success: %s",
@@ -470,7 +470,7 @@ func TestMCP(t *testing.T) {
 	})
 
 	t.Run("Control/StatusAfterStop", func(t *testing.T) {
-		result := callTool(t, c, "emacs_jail_control",
+		result := callTool(t, c, "control",
 			map[string]any{"action": "status"})
 		assert.False(t, result.IsError,
 			"expected success, got error: %s",

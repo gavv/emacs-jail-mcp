@@ -27,7 +27,7 @@ var (
 
 var errNotRunning = errors.New(
 	"jail is not running;" +
-		" call emacs_jail_control with action=start first")
+		" call control with action=start first")
 
 type State int
 

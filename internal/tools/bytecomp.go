@@ -89,7 +89,7 @@ const bytecompElispTmpl = `
 `
 
 func bytecompTool() mcp.Tool {
-	return mcp.NewTool("emacs_jail_bytecomp",
+	return mcp.NewTool("bytecomp",
 		mcp.WithDescription(
 			"Byte-compile an elisp file synchronously and return errors and warnings. "+
 				"No .elc file is written. Results are sorted by position."),

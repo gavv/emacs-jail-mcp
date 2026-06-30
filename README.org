@@ -67,12 +67,12 @@ MCP transports:
 
 MCP tools:
 
-- ~emacs_jail_control~: start, stop, restart, or inspect jail status
-- ~emacs_jail_logs~: read Emacs messages and warnings, init diagnostics, and stderr logs
-- ~emacs_jail_bytecomp~: byte-compile an Elisp file and return diagnostics
-- ~emacs_jail_eval~: evaluate an Emacs Lisp expression
-- ~emacs_jail_shell~: run a shell command inside the jail container
-- ~emacs_jail_screenshot~: capture the Xvfb Emacs display as a PNG image
+- ~control~: start, stop, restart, or inspect jail status
+- ~logs~: read Emacs messages and warnings, init diagnostics, and stderr logs
+- ~bytecomp~: byte-compile an Elisp file and return diagnostics
+- ~eval~: evaluate an Emacs Lisp expression
+- ~shell~: run a shell command inside the jail container
+- ~screenshot~: capture the Xvfb Emacs display as a PNG image
 
 *** Limitations
 

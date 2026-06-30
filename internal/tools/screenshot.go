@@ -13,7 +13,7 @@ import (
 )
 
 func screenshotTool() mcp.Tool {
-	return mcp.NewTool("emacs_jail_screenshot",
+	return mcp.NewTool("screenshot",
 		mcp.WithDescription(
 			"Capture a screenshot of the Emacs jail display and return it as a PNG image."),
 	)
