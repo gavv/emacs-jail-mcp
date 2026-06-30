@@ -242,7 +242,7 @@ e2e/cli_test.go                             # TestCLI: CLI subcommands against l
 
 5. **`podman exec` doesn't inherit entrypoint env**: Environment variables set by the container entrypoint, such as `DISPLAY`, are not available in `podman exec`. Pass them explicitly with `-e`, e.g. `-e DISPLAY=:NN`.
 
-6. **Forward `SHELL` into the container**: Without `SHELL`, Emacs can fall back to `/bin/sh`. If user config sets `shell-command-switch` to `"-ic"`, dash may print `can't access tty; job control turned off`; forwarding host `SHELL` lets Emacs use the user's shell.
+6. **Forward `PATH` and `SHELL` into the container**: `PATH` ensures tools installed by the parent process (for example a matrix-selected Emacs in CI) are visible when the entrypoint launches `emacs`. Without `SHELL`, Emacs can fall back to `/bin/sh`. If user config sets `shell-command-switch` to `"-ic"`, dash may print `can't access tty; job control turned off`; forwarding host `SHELL` lets Emacs use the user's shell.
 
 7. **Watchdog uses flock, not `/proc`**: The container has a private PID namespace, so it can't see `/proc/<hostPID>`. The Go process holds an exclusive lock on a sentinel file in `/tmp`; when the parent exits, the OS releases the lock and the watchdog kills the container process group.
 

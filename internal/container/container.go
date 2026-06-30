@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -87,12 +88,19 @@ func (c *Container) Start(ctx context.Context) error {
 		"--network=host",
 		"--ipc=host",
 		"--volume", "/tmp:/tmp",
-		"--volume", fmt.Sprintf("/run/user/%d:/run/user/%d", uid, uid),
-		"--volume", fmt.Sprintf("%s/.cache:%s/.cache", os.Getenv("HOME"), os.Getenv("HOME")),
 		"--security-opt", "label=disable",
+	}
+	args = c.appendVolumeIfExists(args,
+		fmt.Sprintf("/run/user/%d", uid), fmt.Sprintf("/run/user/%d", uid))
+	if home := os.Getenv("HOME"); home != "" {
+		args = c.appendVolumeIfExists(args, filepath.Join(home, ".cache"),
+			filepath.Join(home, ".cache"))
 	}
 	for _, kv := range envVars {
 		args = append(args, "--env", kv)
+	}
+	if path := os.Getenv("PATH"); path != "" {
+		args = append(args, "--env", "PATH="+path)
 	}
 	if shell := os.Getenv("SHELL"); shell != "" {
 		args = append(args, "--env", "SHELL="+shell)
@@ -214,6 +222,18 @@ func (c *Container) ExecRaw(
 
 func (c *Container) IsRunning() bool {
 	return c.running
+}
+
+func (c *Container) appendVolumeIfExists(
+	args []string, hostPath, containerPath string,
+) []string {
+	if _, err := os.Stat(hostPath); err != nil {
+		if !os.IsNotExist(err) {
+			log.Warningf("skipping volume %s: %v", hostPath, err)
+		}
+		return args
+	}
+	return append(args, "--volume", fmt.Sprintf("%s:%s", hostPath, containerPath))
 }
 
 // If n <= 0, all lines are returned.
